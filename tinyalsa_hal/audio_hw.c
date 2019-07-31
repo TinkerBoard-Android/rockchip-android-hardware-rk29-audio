@@ -1598,6 +1598,8 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
      * is not allowed to close the stream concurrently with this API
      *  pthread_mutex_lock(&adev->lock_outputs);
      */
+    out->mVolume[0] = left;
+    out->mVolume[1] = right;
     bool is_HDMI = out == adev->outputs[OUTPUT_HDMI_MULTI];
     /*  pthread_mutex_unlock(&adev->lock_outputs); */
     if (is_HDMI) {
@@ -1797,6 +1799,76 @@ static int bitstream_write_data(struct stream_out *out,void* buffer,size_t bytes
     return ret;
 }
 
+/*
+ * process volume of multi pcm stream
+ * The multi pcm output no using mixer,so the can't control by volume setting,
+ * so here we process multi pcm datas with volume value.
+ *
+ * NOTE:DO NOT PROCESS DATAS IF THE DATA FORMAT IS NOT PCM.
+ */
+
+static void out_multipcm_volume_process(struct stream_out *out,void * buffer, size_t len)
+{
+    if((out == NULL) || (buffer == NULL) || (len <= 0)){
+        return ;
+    }
+
+    if(!is_multi_pcm(out)) {
+        return ;
+    }
+
+    int format = out->config.format;
+    if((format == PCM_FORMAT_S16_LE)) {
+        float left = out->mVolume[0];
+        short *pcm = (short*)buffer;
+        float temp = 0;
+        size_t index = 0;
+        size_t size = len/2;
+        while(index < size) {
+            temp = (float)pcm[index];
+            pcm[index] = (short)(temp*left);
+            index ++;
+        }
+    }
+}
+
+/*
+ * swtich Front Center's datas and Low Frequency datas
+ * the pcm datas after decode is : FL, FR, FC, LFE ......
+ * the datas needed in kernel is : FL, FR, LFE, FC ......
+ */
+static void out_switch_fc_lfe(struct stream_out *out,void * buffer, size_t len)
+{
+    if((out == NULL) || (buffer == NULL) || (len <= 0)){
+        return ;
+    }
+
+    if(!is_multi_pcm(out)) {
+        return ;
+    }
+
+    int channel = out->config.channels;
+    int format = out->config.format;
+    /*
+     * actually here, the channel mask must have FC and LFE,
+     * so the condition channel >= 4 is not right
+     */
+    if((channel >= 4) && (format == PCM_FORMAT_S16_LE)){
+        short *pcm = (short*)buffer;
+        short *end = (short*)buffer + (len/2);
+        short temp = 0;
+        short * test = NULL;
+        while(pcm < end) {
+            // Front Center's datas
+            temp = pcm[2];
+            // Low Frequency Effect's datas
+            pcm[2] = pcm[3];
+            pcm[3] = temp;
+            pcm += channel;
+        }
+    }
+}
+
 /**
  * @brief out_write
  *
@@ -1871,6 +1943,9 @@ false_alarm:
         }
 #endif
     } else {
+        if(is_multi_pcm(out)) {
+            out_multipcm_volume_process(out,buffer,bytes);
+        }
         out_mute_data(out,(void*)buffer,bytes);
         dump_out_data(buffer, bytes);
         ret = -1;
@@ -1902,6 +1977,14 @@ false_alarm:
                         continue;
                     }
 #endif
+                    /*
+                     * current in our sdk codes, only HDMI support multi pcm output,
+                     * so here device == AUDIO_DEVICE_OUT_AUX_DIGITAL
+                     */
+                    if(is_multi_pcm(out) && (out->device == AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
+                        out_switch_fc_lfe(out,buffer,bytes);
+                    }
+
                     ret = pcm_write(out->pcm[i], (void *)buffer, bytes);
                     if (ret != 0)
                         break;
@@ -2694,7 +2777,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->snd_reopen = false;
     out->channel_buffer = NULL;
     out->bitstream_buffer = NULL;
-
+    out->mVolume[0] = out->mVolume[1] = 1.0f;
     init_hdmi_audio(&out->hdmi_audio);
     if(devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
         parse_hdmi_audio(&out->hdmi_audio);
