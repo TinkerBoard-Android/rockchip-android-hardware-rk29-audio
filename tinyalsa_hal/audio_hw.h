@@ -351,6 +351,7 @@ struct stream_out {
     struct hdmi_audio_infors hdmi_audio;
 
     bool   snd_reopen;
+    float  mVolume[2];
 };
 
 struct stream_in {
