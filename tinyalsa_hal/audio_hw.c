@@ -2497,15 +2497,15 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
     } while (0);
 #endif
 
-    //if (in->ramp_frames > 0)
-    //    in_apply_ramp(in, buffer, frames_rq);
+    if (in->ramp_frames > 0)
+        in_apply_ramp(in, buffer, frames_rq);
 
     /*
      * Instead of writing zeroes here, we could trust the hardware
      * to always provide zeroes when muted.
      */
-    //if (ret == 0 && adev->mic_mute)
-    //    memset(buffer, 0, bytes);
+    if (ret == 0 && adev->mic_mute)
+        memset(buffer, 0, bytes);
 #ifdef SPEEX_DENOISE_ENABLE
     if(!adev->mic_mute && ret== 0) {
         int index = 0;
