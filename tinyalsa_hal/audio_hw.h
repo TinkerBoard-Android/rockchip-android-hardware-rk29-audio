@@ -272,6 +272,20 @@ enum snd_in_sound_cards {
     SND_IN_SOUND_CARD_BT,
     SND_IN_SOUND_CARD_MAX,
 };
+
+struct dev_proc_info
+{
+    const char *cid; /* cardX/id match */
+    const char *did; /* dai id match */
+};
+
+struct dev_info
+{
+    const char *id;
+    int card;
+    int device;
+};
+
 struct audio_device {
     struct audio_hw_device hw_device;
 
@@ -301,10 +315,8 @@ struct audio_device {
      */
     int*  owner[2];
 
-    // store the sound card number of output devices
-    int out_card[SND_OUT_SOUND_CARD_MAX];
-    // store the sound card number of input devices
-    int in_card[SND_IN_SOUND_CARD_MAX];
+    struct dev_info dev_out[SND_OUT_SOUND_CARD_MAX];
+    struct dev_info dev_in[SND_IN_SOUND_CARD_MAX];
 };
 
 struct stream_out {
