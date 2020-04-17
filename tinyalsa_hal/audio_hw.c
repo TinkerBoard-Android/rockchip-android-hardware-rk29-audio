@@ -1526,7 +1526,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     lock_all_outputs(adev);
     if (ret >= 0) {
         val = atoi(value);
-        if ((val != 0) && ((out->device & val) != val)) {
+        if ((val != 0) && ((out->device & val) != val) ||
+            (val != 0) && !(out->device & AUDIO_DEVICE_OUT_HDMI)) {
             /* Force standby if moving to/from SPDIF or if the output
              * device changes when in SPDIF mode */
             if (((val & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET) ^
