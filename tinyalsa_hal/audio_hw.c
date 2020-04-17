@@ -662,10 +662,10 @@ static void read_in_sound_card(struct stream_in *in)
             len--;
            id[len] = '\0';
         }
-        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_MIC], card, id, MIC_IN_NAME);
+        get_specified_in_dev(&device->dev_in[SND_IN_SOUND_CARD_MIC], card, id, MIC_IN_NAME);
         /* set HDMI audio input info if need hdmi audio input */
-        /* get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_HDMI], card, id, HDMI_IN_NAME); */
-        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_BT], card, id, BT_IN_NAME);
+        /* get_specified_in_dev(&device->dev_in[SND_IN_SOUND_CARD_HDMI], card, id, HDMI_IN_NAME); */
+        get_specified_in_dev(&device->dev_in[SND_IN_SOUND_CARD_BT], card, id, BT_IN_NAME);
     }
     dumpdev_info("in", device->dev_in, SND_IN_SOUND_CARD_MAX);
     return ;
@@ -855,7 +855,7 @@ static int start_output_stream(struct stream_out *out)
     open_sound_card_policy(out);
 #endif
 
-    route_pcm_open(getRouteFromDevice(out->device));
+    route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card, getRouteFromDevice(out->device));
 
     if (out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
         if (adev->owner[SOUND_CARD_HDMI] == NULL) {
@@ -1038,7 +1038,8 @@ static int start_input_stream(struct stream_in *in)
 
     in_dump(in, 0);
     read_in_sound_card(in);
-    route_pcm_open(getRouteFromDevice(in->device | AUDIO_DEVICE_BIT_IN));
+    route_pcm_card_open(adev->dev_in[SND_IN_SOUND_CARD_MIC].card,
+                        getRouteFromDevice(in->device | AUDIO_DEVICE_BIT_IN));
 #ifdef RK3399_LAPTOP //HARD CODE FIXME
     if ((in->device & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
             (adev->mode == AUDIO_MODE_IN_COMMUNICATION)) {
@@ -3731,7 +3732,7 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev->hw_device.dump = adev_dump;
     adev->hw_device.get_microphones = adev_get_microphones;
     //adev->ar = audio_route_init(MIXER_CARD, NULL);
-    route_init();
+    //route_init();
     /* adev->cur_route_id initial value is 0 and such that first device
      * selection is always applied by select_devices() */
     *device = &adev->hw_device.common;
