@@ -55,6 +55,8 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define SND_CARDS_NODE          "/proc/asound/cards"
 #define SPDIF_SOUNDS "persist.spdif_sounds"
+#define HDMI_STATUS "vendor.hwc.device.main"
+#define DP_STATUS "vendor.hwc.device.aux"
 
 struct SurroundFormat {
     audio_format_t format;
@@ -868,6 +870,8 @@ static int start_output_stream(struct stream_out *out)
     int card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
     int device = 0;
     char prop_spdif_sounds[PROP_VALUE_MAX] = {0};
+    char prop_hdmi_status[PROP_VALUE_MAX] = {0};
+    char prop_dp_status[PROP_VALUE_MAX] = {0};
     // set defualt value to true for compatible with mid project
 
 
@@ -888,10 +892,28 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
+
+    property_get(HDMI_STATUS, prop_hdmi_status, NULL);
+    property_get(DP_STATUS, prop_dp_status, NULL);
     property_get(SPDIF_SOUNDS, prop_spdif_sounds, NULL);
+
+    if (strcmp(prop_hdmi_status, "HDMI-A-1") == 0) {
+        ALOGD("Sound Output Devices : HDMI");
+	property_set(SPDIF_SOUNDS, "0");
+    }
+    else if (strcmp(prop_dp_status, "DP") == 0) {
+        ALOGD("Sound Output Devices : DP/SPDIF");
+	property_set(SPDIF_SOUNDS, "1");
+    }
+    else {
+        ALOGD("Unknown Devices");
+        property_set(SPDIF_SOUNDS, "0");
+    }
+
     route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card, getRouteFromDevice(out->device));
 
-    if ((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) && (prop_spdif_sounds[0] != '1')) {
+    if (((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) || (prop_spdif_sounds[0] == '0'))
+          && (prop_spdif_sounds[0] != '1')) {
         if (adev->owner[SOUND_CARD_HDMI] == NULL) {
             card = adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card;
             device =adev->dev_out[SND_OUT_SOUND_CARD_HDMI].device;
