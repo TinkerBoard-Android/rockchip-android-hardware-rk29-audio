@@ -869,6 +869,7 @@ static int start_output_stream(struct stream_out *out)
     int ret = 0;
     int card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
     int device = 0;
+    int device_connect_status = 0; // HDMI=0, DP=1
     char prop_spdif_sounds[PROP_VALUE_MAX] = {0};
     char prop_hdmi_status[PROP_VALUE_MAX] = {0};
     char prop_dp_status[PROP_VALUE_MAX] = {0};
@@ -898,21 +899,21 @@ static int start_output_stream(struct stream_out *out)
     property_get(SPDIF_SOUNDS, prop_spdif_sounds, NULL);
 
     if (strcmp(prop_hdmi_status, "HDMI-A-1") == 0) {
-        ALOGD("Sound Output Devices : HDMI");
-	property_set(SPDIF_SOUNDS, "0");
+        ALOGD("Devices Connect Status : HDMI");
+        device_connect_status = 0;
     }
     else if (strcmp(prop_dp_status, "DP") == 0) {
-        ALOGD("Sound Output Devices : DP/SPDIF");
-	property_set(SPDIF_SOUNDS, "1");
+        ALOGD("Devices Connect Status : DP");
+        device_connect_status = 1;
     }
     else {
-        ALOGD("Unknown Devices");
-        property_set(SPDIF_SOUNDS, "0");
+        ALOGD("Devices Connect Status : Unknown");
+        device_connect_status = 0;
     }
 
     route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card, getRouteFromDevice(out->device));
 
-    if (((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) || (prop_spdif_sounds[0] == '0'))
+    if (((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) || (device_connect_status == 0))
           && (prop_spdif_sounds[0] != '1')) {
         if (adev->owner[SOUND_CARD_HDMI] == NULL) {
             card = adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card;
@@ -948,7 +949,7 @@ static int start_output_stream(struct stream_out *out)
     if ((out->device & (AUDIO_DEVICE_OUT_SPEAKER |
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
                        AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
-                       AUDIO_DEVICE_OUT_ALL_SCO)) && (prop_spdif_sounds[0] != '1')) {
+                       AUDIO_DEVICE_OUT_ALL_SCO)) && (device_connect_status != 1) && (prop_spdif_sounds[0] != '1')) {
         card = adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card;
         device = adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].device;
         if(card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
@@ -964,7 +965,7 @@ static int start_output_stream(struct stream_out *out)
 
     }
 
-    if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (prop_spdif_sounds[0] == '1')) {
+    if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (device_connect_status == 1) || (prop_spdif_sounds[0] == '1')) {
         if (adev->owner[SOUND_CARD_SPDIF] == NULL){
             card = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].card;
             device = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].device;
