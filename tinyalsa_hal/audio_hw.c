@@ -55,6 +55,8 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define SND_CARDS_NODE          "/proc/asound/cards"
 #define SPDIF_SOUNDS "persist.spdif_sounds"
+#define HDMI_STATUS "vendor.hwc.device.main"
+#define DP_STATUS "vendor.hwc.device.aux"
 
 struct SurroundFormat {
     audio_format_t format;
@@ -860,7 +862,10 @@ static int start_output_stream(struct stream_out *out)
     int ret = 0;
     int card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
     int device = 0;
+    int device_connect_status = 0; // HDMI=0, DP=1
     char prop_spdif_sounds[PROP_VALUE_MAX] = {0};
+    char prop_hdmi_status[PROP_VALUE_MAX] = {0};
+    char prop_dp_status[PROP_VALUE_MAX] = {0};
     // set defualt value to true for compatible with mid project
 
 
@@ -881,9 +886,26 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
+
+    property_get(HDMI_STATUS, prop_hdmi_status, NULL);
+    property_get(DP_STATUS, prop_dp_status, NULL);
     property_get(SPDIF_SOUNDS, prop_spdif_sounds, NULL);
 
-    if ((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) && (prop_spdif_sounds[0] != '1')) {
+    if (strcmp(prop_hdmi_status, "HDMI-A-1") == 0) {
+        ALOGD("Devices Connect Status : HDMI");
+        device_connect_status = 0;
+    }
+    else if (strcmp(prop_dp_status, "DP") == 0) {
+        ALOGD("Devices Connect Status : DP");
+        device_connect_status = 1;
+    }
+    else {
+        ALOGD("Devices Connect Status : Unknown");
+        device_connect_status = 0;
+    }
+
+    if (((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) || (device_connect_status == 0))
+            && (prop_spdif_sounds[0] != '1')) {
         audio_devices_t route_device = out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL;
         route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card, getRouteFromDevice(route_device));
 
@@ -921,7 +943,7 @@ static int start_output_stream(struct stream_out *out)
     if ((out->device & (AUDIO_DEVICE_OUT_SPEAKER |
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
                        AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
-                       AUDIO_DEVICE_OUT_ALL_SCO)) && (prop_spdif_sounds[0] != '1')) {
+                       AUDIO_DEVICE_OUT_ALL_SCO)) && (device_connect_status != 1) && (prop_spdif_sounds[0] != '1')) {
         audio_devices_t route_device = out->device & (AUDIO_DEVICE_OUT_SPEAKER |
                                                       AUDIO_DEVICE_OUT_WIRED_HEADSET |
                                                       AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
@@ -942,7 +964,7 @@ static int start_output_stream(struct stream_out *out)
 
     }
 
-    if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (prop_spdif_sounds[0] == '1')) {
+    if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (device_connect_status == 1) || (prop_spdif_sounds[0] == '1')) {
         if (adev->owner[SOUND_CARD_SPDIF] == NULL){
             card = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].card;
             device = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].device;
