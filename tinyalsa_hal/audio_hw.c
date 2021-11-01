@@ -303,6 +303,7 @@ struct dev_proc_info SPEAKER_OUT_NAME[] = /* add codes& dai name here*/
     {"rockchiprt5640c", "rt5640-aif1",},
     {"rockchiprt5670c", NULL,},
     {"rockchiprt5672c", NULL,},
+    {"sndrpihifiberry", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -938,6 +939,9 @@ static int start_output_stream(struct stream_out *out)
             ALOGD("The current HDMI is DVI mode");
             out->device |= AUDIO_DEVICE_OUT_SPEAKER;
         }
+
+        if (card == (int)SND_OUT_SOUND_CARD_UNKNOWN)
+            out->device |= AUDIO_DEVICE_OUT_SPEAKER;
     }
 
     if ((out->device & (AUDIO_DEVICE_OUT_SPEAKER |
