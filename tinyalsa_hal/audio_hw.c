@@ -48,6 +48,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <cutils/properties.h>
 #define SNDRV_CARDS 8
 #define SNDRV_DEVICES 8
 
@@ -60,6 +61,7 @@
 #define CH_CHECK (1 << 2)
 
 #define HDMI_BITSTREAM_BYPASS "ELD Bypass"
+#define SPDIF_SOUNDS "persist.spdif_sounds"
 
 struct SurroundFormat {
     audio_format_t format;
@@ -307,6 +309,7 @@ struct dev_proc_info SPEAKER_OUT_NAME[] = /* add codes& dai name here*/
     {"rockchiprt5640c", "rt5640-aif1",},
     {"rockchiprt5670c", NULL,},
     {"rockchiprt5672c", NULL,},
+    {"Audio", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -320,6 +323,7 @@ struct dev_proc_info HDMI_OUT_NAME[] =
     {"rockchiphdmi1", NULL,},
     {"rockchiphdmi0", NULL,},
     {"rockchiprt5640c", "i2s-hifi",},
+    {"rockchipminiarm", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -329,6 +333,7 @@ struct dev_proc_info SPDIF_OUT_NAME[] =
     {"ROCKCHIPSPDIF", "dit-hifi",},
     {"rockchipspdif", NULL,},
     {"rockchipcdndp", NULL,},
+    {"Audio", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -358,6 +363,7 @@ struct dev_proc_info MIC_IN_NAME[] =
     {"rockchiprt5640c", NULL,},
     {"rockchiprt5670c", NULL,},
     {"rockchiprt5672c", NULL,},
+    {"Audio", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -469,7 +475,16 @@ static bool get_specified_out_dev(struct dev_info *devinfo,
 
     if (!match[index].did) { /* no exist dai info, exit */
         devinfo->card = card;
+#ifdef RK3288
+        if (strcmp(devinfo->id, "SPEAKER") == 0)
+            devinfo->device = 2;
+        else if (strcmp(devinfo->id, "SPDIF") == 0)
+            devinfo->device = 1;
+        else
+            devinfo->device = 0;
+#else
         devinfo->device = 0;
+#endif
         devinfo->score  = better;
         ALOGD("%s card, got card=%d,device=%d", devinfo->id,
               devinfo->card, devinfo->device);
@@ -499,7 +514,16 @@ static bool get_specified_out_dev(struct dev_info *devinfo,
         /* parse device dai */
         if (dev_id_match(info, match[index].did)) {
             devinfo->card = card;
+#ifdef RK3288
+            if (strcmp(devinfo->id, "SPEAKER") == 0)
+                devinfo->device = 2;
+            else if (strcmp(devinfo->id, "SPDIF") == 0)
+                devinfo->device = 1;
+            else
+                devinfo->device = device;
+#else
             devinfo->device = device;
+#endif
             devinfo->score  = better;
             ALOGD("%s card, got card=%d,device=%d", devinfo->id,
                   devinfo->card, devinfo->device);
@@ -545,7 +569,14 @@ static bool get_specified_in_dev(struct dev_info *devinfo,
 
     if (!match[index].did) { /* no exist dai info, exit */
         devinfo->card = card;
+#ifdef RK3288
+        if (strcmp(devinfo->id, "MIC") == 0)
+            devinfo->device = 1;
+        else
+            devinfo->device = 0;
+#else
         devinfo->device = 0;
+#endif
         devinfo->score = better;
         ALOGD("%s card, got card=%d,device=%d", devinfo->id,
               devinfo->card, devinfo->device);
@@ -575,7 +606,14 @@ static bool get_specified_in_dev(struct dev_info *devinfo,
         /* parse device dai */
         if (dev_id_match(info, match[i].did)) {
             devinfo->card = card;
+#ifdef RK3288
+            if (strcmp(devinfo->id, "MIC") == 0)
+                devinfo->device = 1;
+            else
+                devinfo->device = device;
+#else
             devinfo->device = device;
+#endif
             devinfo->score = better;
             ALOGD("%s card, got card=%d,device=%d", devinfo->id,
                   devinfo->card, devinfo->device);
@@ -945,6 +983,7 @@ static void open_sound_card_policy(struct stream_out *out)
         }
     }
 
+#if 0
     // some specail config for chips
 #ifdef RK3288
     /*3288's hdmi & codec use the same i2s,so only config the codec card*/
@@ -952,6 +991,7 @@ static void open_sound_card_policy(struct stream_out *out)
     if ((out->device & devices) == devices) {
         out->device &= ~AUDIO_DEVICE_OUT_AUX_DIGITAL;
     }
+#endif
 #endif
 }
 
@@ -969,6 +1009,7 @@ static int start_output_stream(struct stream_out *out)
     int ret = 0;
     int card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
     int device = 0;
+    char prop_spdif_sounds[PROP_VALUE_MAX] = {0};
     // set defualt value to true for compatible with mid project
 
 
@@ -989,12 +1030,17 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
+    property_get(SPDIF_SOUNDS, prop_spdif_sounds, NULL);
 
 #if SUPPORT_MULTIAUDIO
     out->device &= ~(AUDIO_DEVICE_OUT_AUX_DIGITAL | AUDIO_DEVICE_OUT_SPDIF);
 #endif
 
+#ifdef RK3288
+    if ((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) && (prop_spdif_sounds[0] != '1')) {
+#else
     if (out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+#endif
         audio_devices_t route_device = out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL;
         route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card, getRouteFromDevice(route_device));
 
@@ -1039,10 +1085,17 @@ static int start_output_stream(struct stream_out *out)
         }
     }
 
+#ifdef RK3288
+    if ((out->device & (AUDIO_DEVICE_OUT_SPEAKER |
+                       AUDIO_DEVICE_OUT_WIRED_HEADSET |
+                       AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
+                       AUDIO_DEVICE_OUT_ALL_SCO)) && (prop_spdif_sounds[0] != '1')) {
+#else
     if (out->device & (AUDIO_DEVICE_OUT_SPEAKER |
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
                        AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
                        AUDIO_DEVICE_OUT_ALL_SCO)) {
+#endif
         audio_devices_t route_device = out->device & (AUDIO_DEVICE_OUT_SPEAKER |
                                                       AUDIO_DEVICE_OUT_WIRED_HEADSET |
                                                       AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
@@ -1063,7 +1116,11 @@ static int start_output_stream(struct stream_out *out)
 
     }
 
+#ifdef RK3288
+    if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (prop_spdif_sounds[0] == '1')) {
+#else
     if (out->device & AUDIO_DEVICE_OUT_SPDIF) {
+#endif
         if (adev->owner[SOUND_CARD_SPDIF] == NULL){
             card = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].card;
             device = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].device;
@@ -1086,6 +1143,7 @@ static int start_output_stream(struct stream_out *out)
         }
     }
 
+    ALOGD("audio output: card = %d, device = %d", card, device);
     adev->out_device |= out->device;
     ALOGD("%s:%d, out = %p",__FUNCTION__,__LINE__,out);
     return 0;
@@ -1426,6 +1484,7 @@ static int start_input_stream(struct stream_in *in)
     in->ramp_step = (uint16_t)(USHRT_MAX / in->ramp_frames);
     in->ramp_vol = 0;;
 
+    ALOGD("audio input: card = %d, device = %d", card, device);
 
     return 0;
 }
