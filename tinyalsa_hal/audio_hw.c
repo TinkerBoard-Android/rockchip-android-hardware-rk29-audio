@@ -307,7 +307,6 @@ struct dev_proc_info SPEAKER_OUT_NAME[] = /* add codes& dai name here*/
     {"rockchiprt5640c", "rt5640-aif1",},
     {"rockchiprt5670c", NULL,},
     {"rockchiprt5672c", NULL,},
-    {"rockchipminiarm", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
