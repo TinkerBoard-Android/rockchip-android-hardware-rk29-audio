@@ -92,7 +92,7 @@ namespace android_audio_legacy {
 
 //1:Enable the denoise funtion ;0: disable the denoise function
 
-#define SPEEX_DENOISE_ENABLE 1
+#define SPEEX_DENOISE_ENABLE 0
 
 #define RESAMPLER_QUALITY SPEEX_RESAMPLER_QUALITY_DEFAULT
 
