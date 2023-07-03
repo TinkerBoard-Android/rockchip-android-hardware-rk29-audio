@@ -59,6 +59,9 @@ endif
 ifeq ($(strip $(BOARD_USE_AUDIO_3A)),true)
 LOCAL_CFLAGS += -DAUDIO_3A
 endif
+ifeq ($(strip $(TARGET_BOARD_PLATFORM)),rk356x)
+LOCAL_CFLAGS += -DRK356X
+endif
 ifeq ($(strip $(TARGET_BOARD_PLATFORM)),rk3368)
 LOCAL_CFLAGS += -DRK3368
 endif

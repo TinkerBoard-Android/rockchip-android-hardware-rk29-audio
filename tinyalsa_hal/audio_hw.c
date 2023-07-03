@@ -62,6 +62,9 @@
 
 #define HDMI_BITSTREAM_BYPASS "ELD Bypass"
 #define SPDIF_SOUNDS "persist.spdif_sounds"
+#ifdef RK356X
+#define RK3568_HDMI_STATUS "vendor.hwc.device.display-0"
+#endif
 #define MAIN_STATUS "vendor.hwc.device.main"
 #define AUX_STATUS "vendor.hwc.device.aux"
 
@@ -215,7 +218,11 @@ unsigned getOutputRouteFromDevice(uint32_t device)
 {
     switch (device) {
     case AUDIO_DEVICE_OUT_SPEAKER:
-        return SPEAKER_NORMAL_ROUTE;
+#ifdef RK356X
+        return HEADPHONE_NORMAL_ROUTE;
+#else
+	return SPEAKER_NORMAL_ROUTE;
+#endif
     case AUDIO_DEVICE_OUT_WIRED_HEADSET:
         return HEADSET_NORMAL_ROUTE;
     case AUDIO_DEVICE_OUT_WIRED_HEADPHONE:
@@ -1017,6 +1024,9 @@ static int start_output_stream(struct stream_out *out)
     int device = 0;
     int device_connect_status = 0; // HDMI=0, DP=1
     char prop_spdif_sounds[PROP_VALUE_MAX] = {0};
+#ifdef RK356X
+    char prop_rk3568_hdmi_status[PROP_VALUE_MAX] = {0};
+#endif
     char prop_main_status[PROP_VALUE_MAX] = {0};
     char prop_aux_status[PROP_VALUE_MAX] = {0};
     // set defualt value to true for compatible with mid project
@@ -1039,11 +1049,17 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
+#ifdef RK356X
+    property_get(RK3568_HDMI_STATUS, prop_rk3568_hdmi_status, NULL);
+#endif
     property_get(MAIN_STATUS, prop_main_status, NULL);
     property_get(AUX_STATUS, prop_aux_status, NULL);
     property_get(SPDIF_SOUNDS, prop_spdif_sounds, NULL);
-
+#ifdef RK356X
+    if(strstr(prop_rk3568_hdmi_status, "HDMI-A-1:85:connected")) {
+#else
     if ((strcmp(prop_main_status, "HDMI-A-1") == 0) || (strcmp(prop_aux_status, "HDMI-A-1") == 0)) {
+#endif
         ALOGD("Devices Connect Status : HDMI");
         device_connect_status = 0;
     }
@@ -1062,6 +1078,9 @@ static int start_output_stream(struct stream_out *out)
 
 #ifdef RK3288
     if ((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) && (prop_spdif_sounds[0] != '1')) {
+#elif RK356X
+    if ((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) && (prop_spdif_sounds[0] != '1')) {
+        ALOGD("start_output_stream route to HDMI for RK3568");
 #else
     if (((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) || (device_connect_status == 0))
             && (prop_spdif_sounds[0] != '1')) {
@@ -1118,6 +1137,12 @@ static int start_output_stream(struct stream_out *out)
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
                        AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
                        AUDIO_DEVICE_OUT_ALL_SCO)) && (prop_spdif_sounds[0] != '1')) {
+#elif RK356X
+    if ((out->device & (AUDIO_DEVICE_OUT_SPEAKER |
+                       AUDIO_DEVICE_OUT_WIRED_HEADSET |
+                       AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
+                       AUDIO_DEVICE_OUT_ALL_SCO)) && (prop_spdif_sounds[0] != '1')) {
+        ALOGD("start_output_stream route to SPK/HEADPHONE for RK356X");
 #else
     if ((out->device & (AUDIO_DEVICE_OUT_SPEAKER |
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
@@ -1146,6 +1171,9 @@ static int start_output_stream(struct stream_out *out)
 
 #ifdef RK3288
     if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (prop_spdif_sounds[0] == '1')) {
+#elif RK356X
+    if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (prop_spdif_sounds[0] == '1')) {
+        ALOGD("start_output_stream route to spdif for RK356X");
 #else
     if ((out->device & AUDIO_DEVICE_OUT_SPDIF) || (device_connect_status == 1) || (prop_spdif_sounds[0] == '1')) {
 #endif
