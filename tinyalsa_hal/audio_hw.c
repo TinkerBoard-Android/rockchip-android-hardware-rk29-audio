@@ -353,6 +353,7 @@ struct dev_proc_info SPDIF_OUT_NAME[] =
 struct dev_proc_info BT_OUT_NAME[] =
 {
     {"rockchipbt", NULL,},
+    {"sndscortk", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -391,6 +392,7 @@ struct dev_proc_info HDMI_IN_NAME[] =
 struct dev_proc_info BT_IN_NAME[] =
 {
     {"rockchipbt", NULL},
+    {"sndscortk", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
@@ -1436,6 +1438,7 @@ static int start_input_stream(struct stream_in *in)
     read_in_sound_card(in);
 
     if (in->device & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
+        in->config = &pcm_config_sco;
         in->config->rate = adev->bt_wb_speech_enabled?16000:8000;
         card = adev->dev_in[SND_IN_SOUND_CARD_BT].card;
         device =  adev->dev_in[SND_IN_SOUND_CARD_BT].device;
