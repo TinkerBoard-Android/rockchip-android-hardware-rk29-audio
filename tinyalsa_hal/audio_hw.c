@@ -1438,13 +1438,30 @@ static int start_input_stream(struct stream_in *in)
     read_in_sound_card(in);
 
     if (in->device & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
-        in->config = &pcm_config_sco;
+        in->config = &pcm_config_in_bt;
         in->config->rate = adev->bt_wb_speech_enabled?16000:8000;
         card = adev->dev_in[SND_IN_SOUND_CARD_BT].card;
         device =  adev->dev_in[SND_IN_SOUND_CARD_BT].device;
 
         if (card != SND_IN_SOUND_CARD_UNKNOWN) {
+            route_pcm_card_open(card, getRouteFromDevice(in->device | AUDIO_DEVICE_BIT_IN));
             in->pcm = pcm_open(card, device, PCM_IN, in->config);
+            if (in->resampler) {
+                release_resampler(in->resampler);
+
+                in->buf_provider.get_next_buffer = get_next_buffer;
+                in->buf_provider.release_buffer = release_buffer;
+
+                ret = create_resampler(8000,
+                                       in->requested_rate,
+                                       audio_channel_count_from_in_mask(in->channel_mask),
+                                       RESAMPLER_QUALITY_DEFAULT,
+                                       &in->buf_provider,
+                                       &in->resampler);
+                if (ret != 0) {
+                    ret = -EINVAL;
+                }
+            }
         } else {
             ALOGE("%s: %d,the card number of bt is = %d",__FUNCTION__,__LINE__,card);
             return -EINVAL;
@@ -1504,14 +1521,6 @@ static int start_input_stream(struct stream_in *in)
 
         ALOGD("%s open card = %d, device = %d fail", __func__, card, device);
         return -ENOMEM;
-    }
-
-    if (in->config->rate != in->requested_rate) {
-        ret = create_resampler_helper(in, in->config->rate);
-        if (ret < 0 || in->resampler == NULL) {
-            pcm_close(in->pcm);
-            return -EINVAL;
-        }
     }
 
     /* if no supported sample rate is available, use the resampler */
@@ -2517,10 +2526,12 @@ false_alarm:
                     int destRate = out->config.rate;
                     int srcRate = adev->bt_wb_speech_enabled? 16000:8000;
                     int coefficient = (destRate/srcRate);
-                    size_t outFrameCount = inFrameCount/coefficient;
+                    size_t outFrameCount = inFrameCount/4;
 
                     int16_t out_buffer[outFrameCount*2];
                     memset(out_buffer, 0x00, outFrameCount*2);
+                    int16_t mono_buffer[outFrameCount*2];
+                    memset(mono_buffer, 0x00, outFrameCount*2);
 
                     out->resampler->resample_from_input(out->resampler,
                                                         (const int16_t *)buffer,
@@ -2528,7 +2539,9 @@ false_alarm:
                                                         out_buffer,
                                                         &outFrameCount);
 
-                    ret = pcm_write(out->pcm[i], (void *)out_buffer, outFrameCount*2*2);
+                    downmix_to_mono_i16_from_stereo_i16(mono_buffer, out_buffer, outFrameCount);
+
+                    ret = pcm_write(out->pcm[i], (void *)mono_buffer, outFrameCount*2);
                     if (ret != 0)
                         break;
                 } else {
@@ -3869,13 +3882,13 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
 #endif
     /* Respond with a request for mono if a different format is given. */
     //ALOGV("%s:config->channel_mask %d",__FUNCTION__,config->channel_mask);
-    if (/*config->channel_mask != AUDIO_CHANNEL_IN_MONO &&
-            config->channel_mask != AUDIO_CHANNEL_IN_FRONT_BACK*/
-        config->channel_mask != AUDIO_CHANNEL_IN_STEREO) {
-        config->channel_mask = AUDIO_CHANNEL_IN_STEREO;
-        ALOGE("%s:channel is not support",__FUNCTION__);
-        return -EINVAL;
-    }
+    //if (/*config->channel_mask != AUDIO_CHANNEL_IN_MONO &&
+    //        config->channel_mask != AUDIO_CHANNEL_IN_FRONT_BACK*/
+    //    config->channel_mask != AUDIO_CHANNEL_IN_STEREO) {
+    //    config->channel_mask = AUDIO_CHANNEL_IN_STEREO;
+    //    ALOGE("%s:channel is not support",__FUNCTION__);
+    //    return -EINVAL;
+    //}
     if (config->sample_rate == 0 ) {
         config->sample_rate = 44100;
         ALOGW("%s: rate is not support",__FUNCTION__);
@@ -3949,6 +3962,24 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
 
     if (in->device&AUDIO_DEVICE_IN_HDMI) {
         goto out;
+    }
+
+    if ((in->requested_rate != 0) && (in->requested_rate != pcm_config->rate)) {
+        in->buf_provider.get_next_buffer = get_next_buffer;
+        in->buf_provider.release_buffer = release_buffer;
+
+        ALOGD("pcm_config->rate:%d,in->requested_rate:%d,in->channel_mask:%d",
+              pcm_config->rate,in->requested_rate,audio_channel_count_from_in_mask(in->channel_mask));
+        ret = create_resampler(pcm_config->rate,
+                               in->requested_rate,
+                               audio_channel_count_from_in_mask(in->channel_mask),
+                               RESAMPLER_QUALITY_DEFAULT,
+                               &in->buf_provider,
+                               &in->resampler);
+        if (ret != 0) {
+            ret = -EINVAL;
+            goto err_resampler;
+        }
     }
 
 #ifdef AUDIO_3A

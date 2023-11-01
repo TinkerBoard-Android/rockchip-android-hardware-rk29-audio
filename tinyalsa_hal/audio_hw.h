@@ -60,6 +60,7 @@
 
 #include "asoundlib.h"
 
+#include <audio_utils/primitives.h>
 #include <audio_utils/resampler.h>
 #include <audio_route/audio_route.h>
 
@@ -99,9 +100,9 @@
 #define MAX_SUPPORTED_CHANNEL_MASKS 2
 #define MAX_SUPPORTED_SAMPLE_RATES 2
 
-#ifndef BOX_HAL
-#define RK_DENOISE_ENABLE
-#endif
+//#ifndef BOX_HAL
+//#define RK_DENOISE_ENABLE
+//#endif
 
 #define HW_PARAMS_FLAG_LPCM 0
 #define HW_PARAMS_FLAG_NLPCM 1
@@ -147,14 +148,14 @@ struct pcm_config pcm_config_hfp = {
 };
 
 struct pcm_config pcm_config_ap_sco = {
-    .channels = 2,
+    .channels = 1,
     .rate = 8000,
-    .period_size = 80,
+    .period_size = 120,
     .period_count = 4,
 };
 
 struct pcm_config pcm_config_in_bt = {
-    .channels = 2,
+    .channels = 1,
     .rate = 8000,
     .period_size = 120,
     .period_count = 4,
